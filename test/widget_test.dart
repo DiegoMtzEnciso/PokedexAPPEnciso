@@ -31,6 +31,7 @@ void main() {
     expect(pokemon.id, 1);
     expect(pokemon.name, 'bulbasaur');
     expect(pokemon.imageUrl, 'https://example.com/artwork.png');
+    expect(pokemon.spriteUrl, 'https://example.com/sprite.png');
     expect(pokemon.types, ['grass', 'poison']);
     expect(pokemon.heightInMeters, 0.7);
     expect(pokemon.weightInKilograms, 6.9);
@@ -52,5 +53,6 @@ void main() {
     });
 
     expect(pokemon.imageUrl, 'https://example.com/sprite.png');
+    expect(pokemon.spriteUrl, 'https://example.com/sprite.png');
   });
 }

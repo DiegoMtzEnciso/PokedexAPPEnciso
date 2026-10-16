@@ -7,9 +7,12 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env', isOptional: true);
   runApp(const PokedexApp());
 }
 
@@ -20,6 +23,7 @@ class Pokemon {
     required this.height,
     required this.weight,
     required this.imageUrl,
+    this.spriteUrl,
     required this.types,
     required this.baseStats,
   });
@@ -29,6 +33,7 @@ class Pokemon {
   final int height;
   final int weight;
   final String imageUrl;
+  final String? spriteUrl;
   final List<String> types;
   final Map<String, int> baseStats;
 
@@ -47,6 +52,7 @@ class Pokemon {
       height: json['height'] as int,
       weight: json['weight'] as int,
       imageUrl: imageUrl,
+      spriteUrl: sprites['front_default'] as String?,
       types: (json['types'] as List<dynamic>)
           .map(
             (entry) =>
@@ -109,9 +115,8 @@ class PokemonService {
 }
 
 class RotomDexService {
-  // 1. Pega tu API Key completa aquí (la que empieza con AQ.)
-  static const String _geminiApiKey =
-      'AQ.Ab8RN6LI2lqGe3feQ7_YMbqGtVs51b9bTimQdWqsfCeK4Et1fQ';
+  static final String _geminiApiKey =
+      dotenv.env['GEMINI_API_KEY']?.trim() ?? '';
 
   // 2. Lista de modelos recomendados por tu amigo (Cascada de Fallback)
   static const List<String> _modelos = [
@@ -126,10 +131,10 @@ class RotomDexService {
     required String question,
     required List<Map<String, String>> history,
   }) async {
-    if (_geminiApiKey.isEmpty || _geminiApiKey.contains('TU_API_KEY')) {
-      throw StateError(
-        'Falta configurar tu API Key. Reemplaza "AQ.TU_API_KEY_AQUI" con tu clave real.',
-      );
+    if (_geminiApiKey.isEmpty ||
+        _geminiApiKey.contains('TU_API_KEY') ||
+        _geminiApiKey.contains('PEGA_AQUI')) {
+      throw StateError('Falta configurar GEMINI_API_KEY en el archivo .env.');
     }
 
     final stats = pokemon.baseStats.entries
@@ -1237,7 +1242,7 @@ class _PokemonPageState extends State<PokemonPage> {
   }
 }
 
-class _PokemonDetails extends StatelessWidget {
+class _PokemonDetails extends StatefulWidget {
   const _PokemonDetails({
     required this.pokemon,
     required this.currentPokemonId,
@@ -1259,6 +1264,23 @@ class _PokemonDetails extends StatelessWidget {
   final VoidCallback onSearch;
   final String flavorText;
   final bool isFlavorLoading;
+
+  @override
+  State<_PokemonDetails> createState() => _PokemonDetailsState();
+}
+
+class _PokemonDetailsState extends State<_PokemonDetails> {
+  bool _isPixelMode = false;
+
+  Pokemon get pokemon => widget.pokemon;
+  int get currentPokemonId => widget.currentPokemonId;
+  VoidCallback get onPrevious => widget.onPrevious;
+  VoidCallback get onNext => widget.onNext;
+  VoidCallback get onRandom => widget.onRandom;
+  TextEditingController get searchController => widget.searchController;
+  VoidCallback get onSearch => widget.onSearch;
+  String get flavorText => widget.flavorText;
+  bool get isFlavorLoading => widget.isFlavorLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -1405,7 +1427,7 @@ class _PokemonDetails extends StatelessWidget {
       ],
     );
     return _HudPanel(
-      accent: _neonCyan,
+      accent: _isPixelMode ? const Color(0xFFE2C16F) : _neonCyan,
       padding: EdgeInsets.all(isDesktop ? 28 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1446,49 +1468,87 @@ class _PokemonDetails extends StatelessWidget {
             ],
           ),
           SizedBox(height: isDesktop ? 22 : 20),
-          if (isDesktop)
-            Expanded(child: artworkPreview)
-          else
-            SizedBox(height: artworkSize + 42, child: artworkPreview),
-          const SizedBox(height: 14),
-          Text(
-            '#${pokemon.id.toString().padLeft(3, '0')}  /  CLASSIFIED SPECIMEN',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _neonCyan,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _capitalize(pokemon.name),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: isDesktop ? 38 : 32,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1,
-              shadows: [
-                Shadow(
-                  color: _neonPurple.withValues(alpha: 0.55),
-                  blurRadius: 24,
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => _isPixelMode = !_isPixelMode),
+              icon: Icon(
+                _isPixelMode
+                    ? Icons.auto_awesome_rounded
+                    : Icons.style_outlined,
+                size: 19,
+              ),
+              label: Text(
+                _isPixelMode ? 'VISTA CYBERPUNK' : 'VISTA TARJETA / PIXEL',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _isPixelMode
+                    ? _neonCyan
+                    : const Color(0xFFE2C16F),
+                side: BorderSide(
+                  color: (_isPixelMode ? _neonCyan : const Color(0xFFE2C16F))
+                      .withValues(alpha: 0.8),
                 ),
-              ],
+                backgroundColor:
+                    (_isPixelMode ? _neonCyan : const Color(0xFFE2C16F))
+                        .withValues(alpha: 0.07),
+                minimumSize: const Size.fromHeight(44),
+                textStyle: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                  fontSize: 10,
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 9,
-            runSpacing: 9,
-            children: pokemon.types
-                .map((type) => _TypeBadge(type: type))
-                .toList(),
-          ),
+          const SizedBox(height: 10),
+          if (_isPixelMode)
+            _buildPixelCard(isDesktop: isDesktop)
+          else ...[
+            if (isDesktop)
+              Expanded(child: artworkPreview)
+            else
+              SizedBox(height: artworkSize + 42, child: artworkPreview),
+            const SizedBox(height: 14),
+            Text(
+              '#${pokemon.id.toString().padLeft(3, '0')}  /  CLASSIFIED SPECIMEN',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _neonCyan,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _capitalize(pokemon.name),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: isDesktop ? 38 : 32,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+                shadows: [
+                  Shadow(
+                    color: _neonPurple.withValues(alpha: 0.55),
+                    blurRadius: 24,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 9,
+              runSpacing: 9,
+              children: pokemon.types
+                  .map((type) => _TypeBadge(type: type))
+                  .toList(),
+            ),
+          ],
           const SizedBox(height: 20),
           Row(
             children: [
@@ -1528,6 +1588,153 @@ class _PokemonDetails extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPixelCard({required bool isDesktop}) {
+    final imageSize = isDesktop ? 185.0 : 195.0;
+    final spriteUrl = pokemon.spriteUrl ?? pokemon.imageUrl;
+    final hp = pokemon.baseStats['hp'] ?? 0;
+    final attack = pokemon.baseStats['attack'] ?? 0;
+
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 350),
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: const Color(0xFF8C6B35),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFFFE7A3), width: 2),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x66000000),
+              blurRadius: 14,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0D995),
+            border: Border.all(color: const Color(0xFF4A3820), width: 3),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _capitalize(pokemon.name),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF241C13),
+                        fontSize: 17,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  for (final type in pokemon.types.take(1))
+                    _TypeBadge(type: type),
+                  const SizedBox(width: 8),
+                  Text(
+                    'HP $hp',
+                    style: const TextStyle(
+                      color: Color(0xFF8C251E),
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: imageSize,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFB8C6A0),
+                  border: Border.all(color: const Color(0xFF4A3820), width: 4),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x55332613),
+                      blurRadius: 5,
+                      offset: Offset(2, 3),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Image.network(
+                    spriteUrl,
+                    width: imageSize - 8,
+                    height: imageSize - 8,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.none,
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.catching_pokemon_rounded,
+                      color: Color(0xFF4A3820),
+                      size: 64,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Text(
+                    'NO. ${pokemon.id.toString().padLeft(3, '0')}',
+                    style: const TextStyle(
+                      color: Color(0xFF45351E),
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'ATQ $attack  •  ${pokemon.types.length} TIPO${pokemon.types.length == 1 ? '' : 'S'}',
+                    style: const TextStyle(
+                      color: Color(0xFF45351E),
+                      fontFamily: 'monospace',
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Container(
+                height: 3,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFF7D5E2D),
+                      Color(0xFFFFE7A3),
+                      Color(0xFF7D5E2D),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 5),
+              const Text(
+                'POKÉMON // PIXEL COLLECTION',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFF5F4A2A),
+                  fontFamily: 'monospace',
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
